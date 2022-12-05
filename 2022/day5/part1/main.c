@@ -31,20 +31,24 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	char stack[COLS][64]; // stack[x][y] : the yth element of the xth stack
-#ifndef TEST
-	char *stack_ptr[COLS] = {stack[0],
-													 stack[1],
-													 stack[2],
-													 stack[3],
-													 stack[4],
-													 stack[5],
-													 stack[6],
-													 stack[7],
-													 stack[8]};
-#else
-	char *stack_ptr[COLS] = {stack[0], stack[1], stack[2]};
-#endif
+	/*
+	MEMORY LAYOUT :
+	*stack_ptr[0] = 'D'
+	stack[0] : "XYZDJK...""
+							|	^end of the stack ('D' not included) : next value to be written
+							^top of the stack
+	[X]
+	[Y]
+	[Z]
+	 1
+
+	stack[x][y] : the yth element of the xth stack
+	*/
+	char stack[COLS][64];
+	char *stack_ptr[COLS];
+
+	for (uint8_t i = 0; i < COLS; ++i)
+		stack_ptr[i] = stack[i];
 
 	// init : get the stacks
 	for (uint8_t c = 0; c < MAX_INIT_HEIGHT; ++c)
@@ -74,7 +78,6 @@ int main(int argc, char **argv)
 
 	uint32_t nb, src, dst;
 	char tmp;
-	char *tmp_ptr;
 	do
 	{
 		if (fscanf(f, "%*5c" // remove "move "
@@ -86,35 +89,21 @@ int main(int argc, char **argv)
 							 ,
 							 &nb, &src, &dst) == EOF)
 			break;
-		// move(stack[dst - 1], GET_STACK_SIZE(dst - 1), stack_ptr[dst - 1], stack[src - 1], GET_STACK_SIZE(src - 1), stack_ptr[src - 1], nb);
 
+		/*
+		moving the top of src to dst :
+			- create space in dst
+			- copy nb elements from src to dst
+			- "colapse" src, remove the element that were moved to dst
+		*/
 		memmove(stack[(dst - 1)] + nb, stack[(dst - 1)], GET_STACK_SIZE((dst - 1)));
-
-		// easy case, no need to worry about order of placmetn of crates
-		if (nb == 1)
-			memcpy(stack[(dst - 1)], stack[(src - 1)], 1);
-		else
-			for (uint8_t i = 0; i < nb; ++i)
-				stack[dst - 1][nb - i - 1] = stack[src - 1][i];
-
+		for (uint8_t i = 0; i < nb; ++i)
+			stack[dst - 1][nb - i - 1] = stack[src - 1][i];
 		memmove(stack[(src - 1)], stack[(src - 1)] + nb, GET_STACK_SIZE(((src - 1))));
 
 		stack_ptr[(dst)-1] += (nb);
 		stack_ptr[(src)-1] -= (nb);
-
-		(void)tmp_ptr;
-
-		printf("move %u from %u to %u\n", nb, src, dst);
 	} while (fscanf(f, "%1[\n]", &tmp) != EOF);
-
-	for (uint8_t i = 0; i < COLS; ++i)
-	{
-		printf("stack<%u>[%u] : \"", GET_STACK_SIZE(i), i);
-		for (uint8_t j = 0; j < GET_STACK_SIZE(i); ++j)
-			printf("%c", stack[i][j]);
-		printf("\"\n");
-	}
-	printf("\n\n");
 
 	printf("the final configuration of the top crates is : %c", stack[0][0]);
 	for (uint8_t i = 1; i < COLS; ++i)
