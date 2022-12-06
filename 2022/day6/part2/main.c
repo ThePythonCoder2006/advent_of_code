@@ -13,7 +13,7 @@
 #define INPUT "test_input.txt"
 #endif
 
-#define MARKER_SIZE 4
+#define MARKER_SIZE 14
 
 #define GET_COUNTS(inp) counts[(uint8_t)(inp) - 'a']
 
