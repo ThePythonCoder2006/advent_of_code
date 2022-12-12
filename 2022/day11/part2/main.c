@@ -20,11 +20,11 @@
 #define PLUS '+'
 #define TIMES '*'
 
-#define ROUNDS 20
-
-#define RELIEF 3
+#define ROUNDS 10000
 
 #define MKY_OBJ_LST_SIZE 100
+
+#define CONST ((uint64_t)(2 * 3 * 5 * 7 * 11 * 13 * 19))
 
 typedef struct monkey
 {
@@ -59,14 +59,14 @@ int main(int argc, char **argv)
 	for (uint8_t i = 0; i < MKY_NB; ++i)
 		mkys[i] = init_mky(f);
 
-	for (uint8_t _ = 1; _ <= ROUNDS; ++_)
+	for (uint64_t _ = 1; _ <= ROUNDS; ++_)
 	{
 		for (uint8_t i = 0; i < MKY_NB; ++i)
 		{
 			update_mky(mkys[i]);
 		}
-		printf("after round %" PRIu8 " :\n", _);
-		print_mkys();
+		// printf("after round %" PRIu8 " :\n", _);
+		// print_mkys();
 	}
 
 	uint64_t max1 = 0,
@@ -153,7 +153,7 @@ void update_mky(mky_t *mky)
 {
 	if (mky->obj_count == 0)
 	{
-		fprintf(stderr, "the monkey had no item...\n");
+		// fprintf(stderr, "the monkey had no item...\n");
 		return;
 	}
 
@@ -163,6 +163,8 @@ void update_mky(mky_t *mky)
 	for (uint8_t i = 0; i < mky->obj_count; ++i)
 	{
 		++mky->count;
+
+		mky->obj[i] %= (CONST);
 
 		if (mky->op_val == 0)
 			mky->obj[i] *= mky->obj[i];
@@ -178,8 +180,6 @@ void update_mky(mky_t *mky)
 				return;
 			}
 		}
-
-		mky->obj[i] /= RELIEF;
 
 		uint8_t dst_mky;
 		if (mky->obj[i] % mky->test == 0)
