@@ -13,10 +13,13 @@
 #define INPUT "test_input.txt"
 #endif
 
-#define CELL_VISITED (uint8_t)0x01U
+#define CELL_VISITED ((uint8_t)0x01U)
 
-#define ROWS 500
-#define COLS 500
+#define ROWS (500)
+#define COLS (500)
+
+#define TAILS_NB (9)
+#define TAIL_END (TAILS_NB - 1)
 
 enum dir
 {
@@ -46,7 +49,7 @@ uint8_t grid[ROWS][COLS] = {0};
 uint64_t count = 0;
 
 void update_head_pos(char c, knot_t *head);
-void update_tail_pos(knot_t *head, knot_t *tail);
+void update_tail_pos(knot_t *head, knot_t *tail, uint8_t is_end);
 void print_grid(knot_t *head, knot_t *tail);
 
 int main(int argc, char **argv)
@@ -62,9 +65,15 @@ int main(int argc, char **argv)
 	}
 
 	knot_t head = {COLS / 2, ROWS / 2};
-	knot_t tail = {COLS / 2, ROWS / 2};
+	knot_t tails[TAILS_NB];
 
-	grid[tail.y][tail.x] = CELL_VISITED;
+	for (uint8_t i = 0; i < TAILS_NB; ++i)
+	{
+		tails[i].x = COLS / 2;
+		tails[i].y = ROWS / 2;
+	}
+
+	grid[tails[TAIL_END].y][tails[TAIL_END].x] = CELL_VISITED;
 	++count;
 
 	char dir;
@@ -79,7 +88,10 @@ int main(int argc, char **argv)
 		for (uint8_t _ = 0; _ < nb; ++_)
 		{
 			update_head_pos(dir, &head);
-			update_tail_pos(&head, &tail);
+			update_tail_pos(&head, &(tails[0]), 0);
+			for (uint8_t i = 1; i < TAILS_NB - 1; ++i)
+				update_tail_pos(&(tails[i - 1]), &(tails[i]), 0);
+			update_tail_pos(&(tails[TAIL_END - 1]), &(tails[TAIL_END]), 1);
 		}
 	}
 	printf("the tail visited %" PRIu64 " cells\n", count);
@@ -117,7 +129,7 @@ void update_head_pos(char c, knot_t *head)
 	return;
 }
 
-void update_tail_pos(knot_t *head, knot_t *tail)
+void update_tail_pos(knot_t *head, knot_t *tail, uint8_t is_end)
 {
 	int16_t dx = head->x - tail->x;
 	int16_t dy = head->y - tail->y;
@@ -148,7 +160,7 @@ next:
 
 end:
 	// if the cell was not yet visited, make it visited and update counter
-	if (grid[tail->y][tail->x] != CELL_VISITED)
+	if (grid[tail->y][tail->x] != CELL_VISITED && is_end)
 	{
 		grid[tail->y][tail->x] = CELL_VISITED;
 		++count;
