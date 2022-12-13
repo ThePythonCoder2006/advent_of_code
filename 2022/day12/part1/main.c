@@ -33,13 +33,13 @@ typedef struct pos
 	char h;
 } pos_t;
 
-typedef struct node
+typedef struct vertex
 {
 	char h;
 	uint64_t dist
-} node;
+} vertex;
 
-node grid[ROWS][COLS];
+vertex grid[ROWS][COLS];
 
 int main(int argc, char **argv)
 {
