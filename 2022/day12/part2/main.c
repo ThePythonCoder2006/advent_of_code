@@ -53,9 +53,6 @@ graph grid;
 char wall[GRAPH_COLS][GRAPH_ROWS];
 
 void init_grid(graph *grid);
-void init_wall(FILE *f, char walls[GRAPH_COLS][GRAPH_ROWS], node_pos *start, node_pos *end);
-void print_grid(void);
-void print_walls(void);
 node_pos get_min(void);
 
 #define GET_GRID(pos) (grid[pos.x][pos.y])
@@ -79,7 +76,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	node_pos start, end;
+	node_pos start;
 #ifndef DEBUG
 	initscr();
 	start_color(); /* Start color 			*/
@@ -89,28 +86,26 @@ int main(int argc, char **argv)
 	init_pair(PAIR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
 #endif
 
-	/* reading hte height data from file */
+	/* reading the height data from file */
 	char tmp;
 	for (int32_t y = (GRAPH_ROWS - 1); y >= 0; --y)
 	{
 		for (int32_t x = 0; x < GRAPH_COLS; ++x)
 		{
-			// printf("before : x = %i, y = %i\n", x, y);
 			tmp = fgetc(f);
-			// printf("after : x = %i, y = %i\n", x, y);
+
 #ifndef DEBUG
 			addch(tmp);
 #endif
 
 			if (tmp == 'S')
 			{
-				start.x = x, start.y = y;
 				wall[x][y] = 'a';
 				continue;
 			}
 			if (tmp == 'E')
 			{
-				end.x = x, end.y = y;
+				start.x = x, start.y = y;
 				wall[x][y] = 'z';
 				continue;
 			}
@@ -125,18 +120,18 @@ int main(int argc, char **argv)
 
 	fclose(f);
 
-	// starting solving
+	/* dijkstra's algorithm */
+
 	GET_GRID(start).d = 0;
+
+	uint64_t min = INF;
+	node_pos min_pos = {NODE_POS_UNDEF, NODE_POS_UNDEF};
 
 	node_pos u = {0, 0};
 	while (1)
 	{
-
 		u = get_min();
 		if (u.x == NODE_POS_UNDEF && u.y == NODE_POS_UNDEF)
-			break;
-
-		if (u.x == end.x && u.y == end.y)
 			break;
 
 		GET_GRID(u).bools |= VISITED;
@@ -157,7 +152,7 @@ int main(int argc, char **argv)
 					continue;
 
 				// if the node was already visited or is a wall: next node
-				if (IS_VISITED(GET_GRID(v)) || (wall[v.x][v.y] > wall[u.x][u.y] + 1))
+				if (IS_VISITED(GET_GRID(v)) || (wall[v.x][v.y] + 1 < wall[u.x][u.y]))
 					continue;
 
 				if (GET_GRID(u).d + 1 < GET_GRID(v).d)
@@ -166,22 +161,29 @@ int main(int argc, char **argv)
 					GET_GRID(v).prev = u;
 				}
 
+				/* finding starting point */
+
+				// the starting point has to be at level 'a'
+				if (wall[u.x][u.y] != 'a')
+					continue;
+
+				if (GET_GRID(u).d < min)
+				{
+					min_pos.x = u.x, min_pos.y = u.y;
+					min = GET_GRID(u).d;
+				}
+
 				// Sleep(1);
 			}
 	}
 
-	// print_grid();
-
-	// print_walls();
-
 	/* --- reconstructing the path --- */
-
-	u = end;
+	u = min_pos;
 
 	// if there is no previous node before end => end was not reach => it is unreachable => exit
 	if (GET_GRID(u).prev.x == NODE_POS_UNDEF || GET_GRID(u).prev.y == NODE_POS_UNDEF)
 	{
-		// fprintf(stderr, "there is no path beaween start and end...");
+		fprintf(stderr, "there is no path beaween start and end...");
 		return 1;
 	}
 
@@ -192,7 +194,7 @@ int main(int argc, char **argv)
 	}
 
 #ifndef DEBUG
-	mvprintw(GRAPH_ROWS, GRAPH_COLS, "\n\nthe shortest ditance from start to end is %" PRIu64 "\n\n", GET_GRID(end).d);
+	mvprintw(GRAPH_ROWS, GRAPH_COLS, "\n\nthe shortest ditance from start to end is %" PRIu64 "\n\n", min);
 #endif
 
 	/* --- printing the grid --- */
@@ -207,9 +209,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	scanw("%*c");
+	move(GRAPH_ROWS + 10, 0);
+
+	getch();
 #endif
-	// Sleep(10000);
 
 	return EXIT_SUCCESS;
 }
@@ -221,31 +224,6 @@ void init_grid(graph *grid)
 	for (uint32_t x = 0; x < GRAPH_ROWS; ++x)
 		for (uint32_t y = 0; y < GRAPH_COLS; ++y)
 			(*grid)[y][x] = basic;
-}
-
-// void print_grid(void)
-// {
-// 	for (uint32_t y = 0; y < GRAPH_COLS; ++y)
-// 	{
-// 		for (uint32_t x = 0; x < GRAPH_ROWS; ++x)
-// 			if (grid[x][y].d < INF)
-// 				printf("%" PRIu64 " ", grid[x][y].d);
-// 			else
-// 				printf(". ");
-// 		putchar('\n');
-// 	}
-// 	return;
-// }
-
-void print_walls(void)
-{
-	for (int32_t y = (GRAPH_ROWS - 1); y >= 0; --y)
-	{
-		for (uint32_t x = 0; x < GRAPH_COLS; ++x)
-			putchar(wall[x][y]);
-		putchar('\n');
-	}
-	return;
 }
 
 node_pos get_min(void)
