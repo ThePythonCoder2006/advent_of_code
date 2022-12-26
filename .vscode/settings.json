@@ -5,5 +5,9 @@
 		"stdint.h": "c",
 		"stdio.h": "c",
 		"stdbool.h": "c"
-	}
+	},
+	"vim.handleKeys": {
+		"<C-R>": true
+	},
+	//"vim.useCtrlKeys": false,
 }

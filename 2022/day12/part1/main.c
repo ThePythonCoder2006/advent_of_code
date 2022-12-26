@@ -26,7 +26,7 @@
 
 #define PATH_MAX_SIZE 1024
 
-#define INF UINT64_MAX
+#define INF UINT16_MAX
 
 #define VISITED 0x1
 #define PATH 0x2
@@ -36,12 +36,12 @@
 #define NODE_POS_UNDEF (-1)
 typedef struct
 {
-	int32_t x, y;
+	int16_t x, y;
 } node_pos;
 
 typedef struct node
 {
-	uint64_t d;
+	uint16_t d;
 	uint8_t bools;
 	node_pos prev;
 } vertex;
@@ -50,13 +50,28 @@ typedef vertex graph[GRAPH_COLS][GRAPH_ROWS];
 
 graph grid;
 
-char wall[GRAPH_COLS][GRAPH_ROWS];
+typedef struct
+{
+	node_pos *c;
+	uint16_t size, count;
+} set;
+
+#define SET_INIT_SIZE 32
+set open;
+
+char height[GRAPH_COLS][GRAPH_ROWS];
 
 void init_grid(graph *grid);
-void init_wall(FILE *f, char walls[GRAPH_COLS][GRAPH_ROWS], node_pos *start, node_pos *end);
 void print_grid(void);
 void print_walls(void);
-node_pos get_min(void);
+
+int set_add(set *set, const node_pos ele);
+int set_rem(set *set, const node_pos ele);
+int set_init(set *set);
+int set_clear(set *set);
+void set_print(const set set);
+
+node_pos get_min(const set open);
 
 #define GET_GRID(pos) (grid[pos.x][pos.y])
 
@@ -71,6 +86,8 @@ int main(int argc, char **argv)
 	(void)argv;
 
 	init_grid(&grid);
+
+	set_init(&open);
 
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
@@ -89,15 +106,13 @@ int main(int argc, char **argv)
 	init_pair(PAIR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
 #endif
 
-	/* reading hte height data from file */
+	/* reading the height data from file */
 	char tmp;
-	for (int32_t y = (GRAPH_ROWS - 1); y >= 0; --y)
+	for (int16_t y = (GRAPH_ROWS - 1); y >= 0; --y)
 	{
-		for (int32_t x = 0; x < GRAPH_COLS; ++x)
+		for (int16_t x = 0; x < GRAPH_COLS; ++x)
 		{
-			// printf("before : x = %i, y = %i\n", x, y);
 			tmp = fgetc(f);
-			// printf("after : x = %i, y = %i\n", x, y);
 #ifndef DEBUG
 			addch(tmp);
 #endif
@@ -105,17 +120,17 @@ int main(int argc, char **argv)
 			if (tmp == 'S')
 			{
 				start.x = x, start.y = y;
-				wall[x][y] = 'a';
+				height[x][y] = 'a';
 				continue;
 			}
 			if (tmp == 'E')
 			{
 				end.x = x, end.y = y;
-				wall[x][y] = 'z';
+				height[x][y] = 'z';
 				continue;
 			}
 
-			wall[x][y] = tmp;
+			height[x][y] = tmp;
 		}
 		tmp = fgetc(f);
 #ifndef DEBUG
@@ -125,17 +140,19 @@ int main(int argc, char **argv)
 
 	fclose(f);
 
-	// starting solving
+	// add the start
 	GET_GRID(start).d = 0;
+	set_add(&open, start);
 
+	// starting solving
 	node_pos u = {0, 0};
 	while (1)
 	{
-
-		u = get_min();
+		u = get_min(open);
 		if (u.x == NODE_POS_UNDEF && u.y == NODE_POS_UNDEF)
 			break;
 
+		set_rem(&open, u);
 		if (u.x == end.x && u.y == end.y)
 			break;
 
@@ -157,22 +174,18 @@ int main(int argc, char **argv)
 					continue;
 
 				// if the node was already visited or is a wall: next node
-				if (IS_VISITED(GET_GRID(v)) || (wall[v.x][v.y] > wall[u.x][u.y] + 1))
+				if (IS_VISITED(GET_GRID(v)) || (height[v.x][v.y] > height[u.x][u.y] + 1))
 					continue;
+
+				set_add(&open, v);
 
 				if (GET_GRID(u).d + 1 < GET_GRID(v).d)
 				{
 					GET_GRID(v).d = GET_GRID(u).d + 1; // adding one because all of the nodes are at the same distance : 1
 					GET_GRID(v).prev = u;
 				}
-
-				// Sleep(1);
 			}
 	}
-
-	// print_grid();
-
-	// print_walls();
 
 	/* --- reconstructing the path --- */
 
@@ -181,7 +194,7 @@ int main(int argc, char **argv)
 	// if there is no previous node before end => end was not reach => it is unreachable => exit
 	if (GET_GRID(u).prev.x == NODE_POS_UNDEF || GET_GRID(u).prev.y == NODE_POS_UNDEF)
 	{
-		// fprintf(stderr, "there is no path beaween start and end...");
+		fprintf(stderr, "there is no path between start and end...\n");
 		return 1;
 	}
 
@@ -192,24 +205,21 @@ int main(int argc, char **argv)
 	}
 
 #ifndef DEBUG
-	mvprintw(GRAPH_ROWS, GRAPH_COLS, "\n\nthe shortest ditance from start to end is %" PRIu64 "\n\n", GET_GRID(end).d);
+	mvprintw(GRAPH_ROWS, GRAPH_COLS, "\n\nthe shortest ditance from start to end is %" PRIu16 "\n\n", GET_GRID(end).d);
 #endif
 
 	/* --- printing the grid --- */
 
 #ifndef DEBUG
-	for (int32_t y = (GRAPH_ROWS - 1); y >= 0; --y)
-	{
-		for (int32_t x = 0; x < GRAPH_COLS; ++x)
-		{
+	for (int16_t y = (GRAPH_ROWS - 1); y >= 0; --y)
+		for (int16_t x = 0; x < GRAPH_COLS; ++x)
 			if (IS_PATH(grid[x][y]))
 				mvchgat(GRAPH_ROWS - 1 - y, x, 1, 0, 1, NULL);
-		}
-	}
 
-	scanw("%*c");
+	getch();
 #endif
-	// Sleep(10000);
+
+	set_clear(&open);
 
 	return EXIT_SUCCESS;
 }
@@ -218,51 +228,105 @@ void init_grid(graph *grid)
 {
 	const vertex basic = {INF, 0, {NODE_POS_UNDEF, NODE_POS_UNDEF}};
 
-	for (uint32_t x = 0; x < GRAPH_ROWS; ++x)
-		for (uint32_t y = 0; y < GRAPH_COLS; ++y)
+	for (uint16_t x = 0; x < GRAPH_ROWS; ++x)
+		for (uint16_t y = 0; y < GRAPH_COLS; ++y)
 			(*grid)[y][x] = basic;
 }
 
-// void print_grid(void)
-// {
-// 	for (uint32_t y = 0; y < GRAPH_COLS; ++y)
-// 	{
-// 		for (uint32_t x = 0; x < GRAPH_ROWS; ++x)
-// 			if (grid[x][y].d < INF)
-// 				printf("%" PRIu64 " ", grid[x][y].d);
-// 			else
-// 				printf(". ");
-// 		putchar('\n');
-// 	}
-// 	return;
-// }
-
 void print_walls(void)
 {
-	for (int32_t y = (GRAPH_ROWS - 1); y >= 0; --y)
+	for (int16_t y = (GRAPH_ROWS - 1); y >= 0; --y)
 	{
-		for (uint32_t x = 0; x < GRAPH_COLS; ++x)
-			putchar(wall[x][y]);
+		for (uint16_t x = 0; x < GRAPH_COLS; ++x)
+			putchar(height[x][y]);
 		putchar('\n');
 	}
 	return;
 }
 
-node_pos get_min(void)
+node_pos get_min(const set open_set)
 {
 	node_pos node = {NODE_POS_UNDEF, NODE_POS_UNDEF};
-	uint64_t min = INF;
+	uint16_t min = INF;
 
-	for (uint32_t x = 0; x < GRAPH_COLS; ++x)
-		for (uint32_t y = 0; y < GRAPH_ROWS; ++y)
+	if (open_set.count == 0 || open_set.size == 0)
+		return node;
+
+	for (uint16_t i = 0; i < open_set.count; ++i)
+	{
+		if (GET_GRID(open_set.c[i]).d < min)
 		{
-			if (grid[x][y].d < min && !IS_VISITED(grid[x][y]))
-			{
-				min = grid[x][y].d;
-				node.x = x, node.y = y;
-				continue;
-			}
+			min = GET_GRID(open_set.c[i]).d;
+			node = open.c[i];
 		}
 
+		if (GET_GRID(open_set.c[i]).d == 0)
+			return open_set.c[i];
+	}
+
 	return node;
+}
+
+int set_add(set *set, const node_pos ele)
+{
+	if (set->count >= set->size)
+	{
+		set->size *= 2; // multiply the size of the array by two
+		node_pos *tmp_ptr = realloc(set->c, set->size * sizeof(*set->c));
+		if (tmp_ptr == NULL)
+			return 1;
+		set->c = tmp_ptr;
+	}
+
+	set->c[set->count++] = ele;
+
+	return 0;
+}
+
+int set_rem(set *set, const node_pos ele)
+{
+	if (set->count == 1)
+	{
+		set->c[0] = (node_pos){0, 0};
+		--set->count;
+		return 0;
+	}
+	for (uint16_t i = 0; i < set->size; ++i)
+	{
+		if (set->c[i].x == ele.x && set->c[i].y == ele.y)
+		{
+			set->c[i] = set->c[--set->count];
+			set->c[set->count] = (node_pos){0, 0};
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int set_init(set *set)
+{
+	set->count = 0;
+	set->size = SET_INIT_SIZE;
+	set->c = calloc(set->size, sizeof(*set->c));
+
+	return 0;
+}
+
+int set_clear(set *set)
+{
+	free(set->c);
+
+	set->count = 0;
+	set->size = 0;
+
+	return 0;
+}
+
+void set_print(const set set)
+{
+	for (uint16_t i = 0; i < set.size; ++i)
+		printf("(%" PRId16 ", %" PRId16 "), ", set.c[i].x, set.c[i].y);
+
+	return;
 }
