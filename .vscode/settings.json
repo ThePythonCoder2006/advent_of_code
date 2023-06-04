@@ -7,7 +7,7 @@
 		"stdbool.h": "c"
 	},
 	"vim.handleKeys": {
-		"<C-R>": true
+		"<C-R>": true,
+		"<C-w>": false,
 	},
-	//"vim.useCtrlKeys": false,
 }
