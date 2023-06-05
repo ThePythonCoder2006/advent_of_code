@@ -50,7 +50,7 @@ typedef vertex graph[GRAPH_COLS][GRAPH_ROWS];
 
 graph grid;
 
-char wall[GRAPH_COLS][GRAPH_ROWS];
+char height[GRAPH_COLS][GRAPH_ROWS];
 
 void init_grid(graph *grid);
 node_pos get_min(void);
@@ -100,17 +100,17 @@ int main(int argc, char **argv)
 
 			if (tmp == 'S')
 			{
-				wall[x][y] = 'a';
+				height[x][y] = 'a';
 				continue;
 			}
 			if (tmp == 'E')
 			{
 				start.x = x, start.y = y;
-				wall[x][y] = 'z';
+				height[x][y] = 'z';
 				continue;
 			}
 
-			wall[x][y] = tmp;
+			height[x][y] = tmp;
 		}
 		tmp = fgetc(f);
 #ifndef DEBUG
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
 					continue;
 
 				// if the node was already visited or is a wall: next node
-				if (IS_VISITED(GET_GRID(v)) || (wall[v.x][v.y] + 1 < wall[u.x][u.y]))
+				if (IS_VISITED(GET_GRID(v)) || (height[v.x][v.y] + 1 < height[u.x][u.y]))
 					continue;
 
 				if (GET_GRID(u).d + 1 < GET_GRID(v).d)
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 				/* finding starting point */
 
 				// the starting point has to be at level 'a'
-				if (wall[u.x][u.y] != 'a')
+				if (height[u.x][u.y] != 'a')
 					continue;
 
 				if (GET_GRID(u).d < min)
