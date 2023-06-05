@@ -50,12 +50,6 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-#ifdef _WIN32
-	QueryPerformanceCounter(&end);
-	interval = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000000;
-
-	printf("%f microseconds\n", interval);
-#endif
 	double times[ITER] = {0};
 
 	for (uint64_t sample_idx = 0; sample_idx < ITER; ++sample_idx)
