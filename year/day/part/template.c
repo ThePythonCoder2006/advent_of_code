@@ -27,7 +27,6 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 
-<<<<<<< HEAD:template.c
 #ifdef _WIN32
 	LARGE_INTEGER frequency;
 	LARGE_INTEGER start;
@@ -37,14 +36,12 @@ int main(int argc, char **argv)
 	QueryPerformanceFrequency(&frequency);
 	QueryPerformanceCounter(&start);
 #endif
-	== == == =
-							 timer tot;
+	timer tot;
 	timer sample;
 
 	timer_start(&tot);
 
 	FILE *run_log = init_run();
->>>>>>> cc903eb1de19980378f9dc154f1b51c2cadb4a31:year/day/part/template.c
 
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
@@ -53,15 +50,13 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-<<<<<<< HEAD:template.c
 #ifdef _WIN32
 	QueryPerformanceCounter(&end);
 	interval = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000000;
 
 	printf("%f microseconds\n", interval);
 #endif
-	== == == =
-							 double times[ITER] = {0};
+	double times[ITER] = {0};
 
 	for (uint64_t sample_idx = 0; sample_idx < ITER; ++sample_idx)
 	{
@@ -73,7 +68,6 @@ int main(int argc, char **argv)
 
 		times[sample_idx] = timer_stop(&sample);
 	}
->>>>>>> cc903eb1de19980378f9dc154f1b51c2cadb4a31:year/day/part/template.c
 
 	fclose(f);
 
