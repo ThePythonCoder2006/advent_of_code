@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <string.h>
 #include <errno.h>
+#include <curses.h>
+#include <windows.h>
 
 // #define TEST
 
@@ -19,6 +21,8 @@
 
 #define GET_STACK_SIZE(n) (stack_ptr[(n)] - stack[(n)])
 
+void print_crates(char stack[COLS][64], char *stack_ptr[COLS]);
+
 int main(int argc, char **argv)
 {
 	(void)argc;
@@ -30,6 +34,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "couln't open file %s : %s", INPUT, strerror(errno));
 		return EXIT_FAILURE;
 	}
+
+	initscr();
 
 	/*
 	MEMORY LAYOUT :
@@ -90,6 +96,14 @@ int main(int argc, char **argv)
 							 &nb, &src, &dst) == EOF)
 			break;
 
+		clear();
+
+		print_crates(stack, stack_ptr);
+
+		refresh();
+
+		Sleep(10);
+
 		/*
 		moving the top of src to dst :
 			- create space in dst
@@ -97,21 +111,42 @@ int main(int argc, char **argv)
 			- "colapse" src, remove the element that were moved to dst
 		*/
 		memmove(stack[(dst - 1)] + nb, stack[(dst - 1)], GET_STACK_SIZE((dst - 1)));
+		stack_ptr[(dst)-1] += (nb);
 		for (uint8_t i = 0; i < nb; ++i)
 			stack[dst - 1][nb - i - 1] = stack[src - 1][i];
 		memmove(stack[(src - 1)], stack[(src - 1)] + nb, GET_STACK_SIZE(((src - 1))));
-
-		stack_ptr[(dst)-1] += (nb);
 		stack_ptr[(src)-1] -= (nb);
 	} while (fscanf(f, "%1[\n]", &tmp) != EOF);
 
-	printf("the final configuration of the top crates is : %c", stack[0][0]);
+	print_crates(stack, stack_ptr);
+
+	mvprintw(50, 0, "The final configuration of the top crates is : %c", stack[0][0]);
 	for (uint8_t i = 1; i < COLS; ++i)
-	{
-		printf("%c", stack[i][0]);
-	}
+		addch(stack[i][0]);
+
+	addch('\n');
+
+	getch();
 
 	fclose(f);
 
 	return EXIT_SUCCESS;
+}
+
+void print_crates(char stack[COLS][64], char *stack_ptr[COLS])
+{
+	uint8_t max = 0;
+	for (uint8_t i = 0; i < COLS; ++i)
+		if (GET_STACK_SIZE(i) > max)
+			max = GET_STACK_SIZE(i);
+
+	for (uint8_t i = 0; i < COLS; ++i)
+	{
+		for (uint8_t j = 0; j < GET_STACK_SIZE(i); ++j)
+		{
+			mvprintw(max - GET_STACK_SIZE(i) + j, (4 * i), "[%c] ", stack[i][j]);
+		}
+		mvaddch(max, (4 * i) + 1, i + '1');
+	}
+	return;
 }

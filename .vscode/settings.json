@@ -4,6 +4,11 @@
 		"stdlib.h": "c",
 		"stdint.h": "c",
 		"stdio.h": "c",
-		"stdbool.h": "c"
-	}
+		"stdbool.h": "c",
+		"helper.h": "c"
+	},
+	"vim.handleKeys": {
+		"<C-R>": true,
+		"<C-w>": false,
+	},
 }
