@@ -7,6 +7,13 @@
 #include <string.h>
 #include <errno.h>
 
+#define ITER 100
+#define LOGFILE "logs"
+#define BUFF_SIZE 64
+
+#define __HELPER_IMPLEMENTATION__
+#include "../../helper.h"
+
 // #define TEST
 
 #ifndef TEST
@@ -20,6 +27,13 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 
+	timer tot;
+	timer sample;
+
+	timer_start(&tot);
+
+	FILE *run_log = init_run();
+
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
 	{
@@ -27,7 +41,22 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	double times[ITER] = {0};
+
+	for (uint64_t sample_idx = 0; sample_idx < ITER; ++sample_idx)
+	{
+		timer_start(&sample);
+
+		/*
+		 code goes here
+		*/
+
+		times[sample_idx] = timer_stop(&sample);
+	}
+
 	fclose(f);
+
+	double tot_time = timer_end(&tot);
 
 	return EXIT_SUCCESS;
 }

@@ -8,6 +8,17 @@
 #include <errno.h>
 #include <assert.h>
 
+#define ITER 1000
+#define LOGFILE "logs"
+#define BUFF_SIZE 64
+
+#define __HELPER_IMPLEMENTATION__
+#include "../../helper.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 // #define TEST
 
 #ifndef TEST
@@ -52,14 +63,6 @@ typedef struct obj_s
 	uint8_t type;
 } obj;
 
-uint32_t max(uint32_t a, uint32_t b)
-{
-	if (a > b)
-		return a;
-	else
-		return b;
-}
-
 void obj_init(obj *o);
 uint32_t read_obj(char *str, obj *dst);
 void print_obj(const obj o);
@@ -69,6 +72,16 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+
+#ifdef _WIN32
+	LARGE_INTEGER frequency;
+	LARGE_INTEGER start;
+	LARGE_INTEGER end;
+	double interval;
+
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&start);
+#endif
 
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
@@ -107,7 +120,14 @@ int main(int argc, char **argv)
 		++i;
 	} while ((tmp = fgetc(f)) == '\n');
 
-	printf("the sum of the indices already in the right order is : %u", total);
+	printf("the sum of the indices already in the right order is : %u\n", total);
+
+#ifdef _WIN32
+	QueryPerformanceCounter(&end);
+	interval = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000;
+
+	printf("took : %f milliseconds\n", interval);
+#endif
 
 	fclose(f);
 
@@ -137,7 +157,8 @@ uint32_t read_obj(char *str, obj *dst)
 		char *str_copy = calloc(strlen(str) + 1, sizeof(char));
 		strcpy(str_copy, str);
 
-		char *buff = malloc(BUFF_LEN);
+		char buff_[64] = {0};
+		char *buff = &buff_[0];
 		buff = strtok(str_copy, ",]");
 
 		dst->val.integer_value = atoi(buff);
@@ -179,8 +200,7 @@ uint32_t read_obj(char *str, obj *dst)
 		for (uint32_t i = 0; i < len; ++i)
 		{
 			prev_size += read_obj(str + prev_size, &(dst->val.list_content[i]));
-			if (str[prev_size] == ',')
-				++prev_size;
+			prev_size += str[prev_size] == ',';
 		}
 	}
 
