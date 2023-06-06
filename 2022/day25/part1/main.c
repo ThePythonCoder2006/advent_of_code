@@ -8,10 +8,11 @@
 #include <errno.h>
 #include <assert.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
+#define ITER 10000
+#define __HELPER_IMPLEMENTATION__
+#include "../../../helper.h"
 
+// #define _DEBUG
 // #define TEST
 
 #ifndef TEST
@@ -48,7 +49,7 @@ typedef struct SNAFU_s
 void SNAFU_init(SNAFU *snafu);
 void SNAFU_fread_line(FILE *f, SNAFU *ptr);
 void SNAFU_add(SNAFU *rop, SNAFU *op1, SNAFU *op2);
-uint32_t SNAFU_print(SNAFU *snafu);
+void SNAFU_print(SNAFU *snafu);
 void SNAFU_set_zero(SNAFU *snafu);
 
 int main(int argc, char **argv)
@@ -56,15 +57,10 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 
-#ifdef _WIN32
-	LARGE_INTEGER frequency;
-	LARGE_INTEGER start;
-	LARGE_INTEGER end;
-	double interval;
+	timer sample, tot;
+	double times[ITER] = {0};
 
-	QueryPerformanceFrequency(&frequency);
-	QueryPerformanceCounter(&start);
-#endif
+	timer_start(&tot);
 
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
@@ -73,37 +69,41 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	uint32_t int_tot;
-	SNAFU tot;
-	SNAFU_init(&tot);
+	SNAFU sum;
+	SNAFU_init(&sum);
 
 	SNAFU curr;
 	SNAFU_init(&curr);
 
-	char tmp;
-	do
+	for (uint32_t i = 0; i < ITER; ++i)
 	{
-		SNAFU_set_zero(&curr);
-		SNAFU_fread_line(f, &curr);
-		SNAFU_add(&tot, &tot, &curr);
-		int_tot += SNAFU_print(&curr);
-		printf("\t\t");
-		SNAFU_print(&tot);
-		printf("\t\t%u", int_tot);
-		putchar('\n');
-	} while (fscanf(f, "%c", &tmp) != EOF);
+		timer_start(&sample);
+		SNAFU_set_zero(&sum);
+		char tmp;
+		do
+		{
+			SNAFU_set_zero(&curr);
+			SNAFU_fread_line(f, &curr);
+			SNAFU_add(&sum, &sum, &curr);
+		} while (fscanf(f, "%c", &tmp) != EOF);
 
-	SNAFU_print(&tot);
-	putchar('\n');
+		rewind(f);
 
-#ifdef _WIN32
-	QueryPerformanceCounter(&end);
-	interval = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000;
-
-	printf("%f milliseconds\n", interval);
-#endif
+		times[i] = timer_stop(&sample) * 1000;
+	}
 
 	fclose(f);
+
+	SNAFU_print(&sum);
+	putchar('\n');
+
+	const double tot_time = timer_stop(&tot) * 1000;
+	const double mean = mean_time(times);
+	const double std_dev = std_dev_time(times, mean);
+
+	printf("total execution was %f milliseconds\n", tot_time);
+	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f\n", mean, std_dev);
+	printf("%f\n", mean * ITER);
 
 	return EXIT_SUCCESS;
 }
@@ -137,45 +137,43 @@ void SNAFU_add(SNAFU *rop, SNAFU *op1, SNAFU *op2)
 {
 	for (uint8_t i = MAX_DGT_NUM - 1; i != 0; --i)
 	{
+#ifdef _DEBUG
 		if (op1->digits[i] >= DGT_UNREACH || op2->digits[i] >= DGT_UNREACH)
 		{
 			fprintf(stderr, "[ERROR] unreachable !! (%u)\n", __LINE__);
 			return;
 		}
+#endif
+
 		int8_t res = op1->digits[i] + op2->digits[i];
 		if (res >= D_MINUS)
 		{
 			uint8_t gt = (res >= BASE);
-			if (gt)
-				res -= 5, ++rop->digits[i - 1];
-			rop->digits[i] = res;
+			res -= 5 * gt;
+			rop->digits[i - 1] += gt;
+			return;
 		}
 		else
 		{
 			res += 5;
-			rop->digits[i] = res;
 			--rop->digits[i - 1];
 		}
+
+		rop->digits[i] = res;
 	}
 	return;
 }
 
-uint32_t SNAFU_print(SNAFU *snafu)
+void SNAFU_print(SNAFU *snafu)
 {
 	uint8_t is_still_zero = 1;
-	uint32_t tot = 0;
-	uint32_t pow = 1;
-	uint8_t change_idx = 0;
 	for (uint8_t i = 0; i < MAX_DGT_NUM; ++i)
 	{
 		if (is_still_zero && snafu->digits[i] != 0)
-			is_still_zero = 0, change_idx = i;
+			is_still_zero = 0;
 		if (is_still_zero)
 			continue;
 		putchar(digits_str[snafu->digits[i]]);
-		tot += snafu->digits[MAX_DGT_NUM + change_idx - i - 1] * pow;
-		pow *= 5;
 	}
-	printf("\t  %9u", tot);
-	return tot;
+	return;
 }

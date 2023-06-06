@@ -12,7 +12,7 @@
 #define BUFF_SIZE 64
 
 #define __HELPER_IMPLEMENTATION__
-#include "../../helper.h"
+#include "../../../helper.h"
 
 // #define TEST
 
@@ -27,21 +27,10 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 
-#ifdef _WIN32
-	LARGE_INTEGER frequency;
-	LARGE_INTEGER start;
-	LARGE_INTEGER end;
-	double interval;
-
-	QueryPerformanceFrequency(&frequency);
-	QueryPerformanceCounter(&start);
-#endif
 	timer tot;
 	timer sample;
 
 	timer_start(&tot);
-
-	FILE *run_log = init_run();
 
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
@@ -60,12 +49,17 @@ int main(int argc, char **argv)
 		 code goes here
 		*/
 
-		times[sample_idx] = timer_stop(&sample);
+		times[sample_idx] = timer_stop(&sample) * 1000;
 	}
 
 	fclose(f);
 
-	double tot_time = timer_end(&tot);
+	const double tot_time = timer_stop(&tot) * 1000;
+	const double mean = mean_time(times);
+	const double std_dev = std_dev_time(times, mean);
+
+	printf("total execution was %f milliseconds\n", tot_time);
+	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f\n", mean, std_dev);
 
 	return EXIT_SUCCESS;
 }
