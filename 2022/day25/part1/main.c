@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include <immintrin.h>
 
 #define ITER 10000
 #define __HELPER_IMPLEMENTATION__
@@ -31,19 +32,25 @@ enum
 	ONE,
 	TWO,
 	BASE,
-	DGT_UNREACH,
+	UNREACH,
 };
 
-const int8_t digits[17] = {MINUS, DGT_UNREACH, DGT_UNREACH, ZERO, ONE, TWO,
-													 DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, DGT_UNREACH, D_MINUS};
-#define GET_DIGIT(ch) digits[ch - 45]
+const uint8_t digits_lut[32] = {
+		MINUS, UNREACH, ZERO, ONE, TWO, UNREACH, UNREACH, UNREACH,
+		UNREACH, UNREACH, UNREACH, UNREACH, D_MINUS, UNREACH, UNREACH, UNREACH,
+		MINUS, UNREACH, ZERO, ONE, TWO, UNREACH, UNREACH, UNREACH,
+		UNREACH, UNREACH, UNREACH, UNREACH, D_MINUS, UNREACH, UNREACH, UNREACH};
+__m256i digits_lutv;
+const uint8_t lut_magic_const = 34;
+#define GET_OFF_IDX(ch) (ch >> 2)
+#define GET_DIGIT(ch) digits_lut[i - GET_OFF_IDX(ch) - lut_magic_const] // (-GET_OFF_IDX('-') + '-') = 34
 
-const char digits_str_[5] = "=-012";
-const char *const digits_str = &(digits_str_[0]) + 2;
+const char digits_str_[] = {'=', '-', '0', '1', '2'};
+const char *const digits_str = &(digits_str_[0]) - D_MINUS;
 
 typedef struct SNAFU_s
 {
-	int8_t digits[MAX_DGT_NUM];
+	__m256i digits;
 } SNAFU;
 
 void SNAFU_init(SNAFU *snafu);
@@ -56,6 +63,8 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+
+	digits_lutv = _mm256_loadu_si256((const __m256i *)digits_lut);
 
 	timer sample, tot;
 	double times[ITER] = {0};
@@ -116,51 +125,56 @@ void SNAFU_init(SNAFU *snafu)
 
 void SNAFU_set_zero(SNAFU *snafu)
 {
-	memset(&(snafu->digits[0]), ZERO, MAX_DGT_NUM);
+	snafu->digits = _mm256_set1_epi32(0);
 	return;
 }
 
 void SNAFU_fread_line(FILE *f, SNAFU *ptr)
 {
-	char line[33] = {0};
-	fscanf(f, "%32[^\n]", line);
+	char line_tmp[33] = {0};
+	fscanf(f, "%32[^\n]", line_tmp);
+	uint8_t len = strlen(line_tmp);
 
-	uint8_t len = strlen(line);
+	char line[32] = {0};
+	memcpy(line + 32 - len, line_tmp, len);
 
-	for (uint8_t i = 0; i < len; ++i)
-		ptr->digits[MAX_DGT_NUM - i - 1] = GET_DIGIT(line[len - i - 1]);
+	const __m256i lut_constv = _mm256_set1_epi8(lut_magic_const);
+	const __m256i shift_mask = _mm256_set1_epi8(0x3F);
+
+	ptr->digits = _mm256_loadu_si256((const __m256i *)line);
+	const __m256i off = _mm256_and_si256(_mm256_srli_epi16(ptr->digits, 2), shift_mask); // >> 2
+	const __m256i idx = _mm256_sub_epi8(_mm256_sub_epi8(ptr->digits, off), lut_constv);	 // - off - lut_const
+	ptr->digits = _mm256_shuffle_epi8(digits_lutv, idx);
 
 	return;
 }
 
 void SNAFU_add(SNAFU *rop, SNAFU *op1, SNAFU *op2)
 {
-	for (uint8_t i = MAX_DGT_NUM - 1; i != 0; --i)
-	{
-#ifdef _DEBUG
-		if (op1->digits[i] >= DGT_UNREACH || op2->digits[i] >= DGT_UNREACH)
-		{
-			fprintf(stderr, "[ERROR] unreachable !! (%u)\n", __LINE__);
-			return;
-		}
-#endif
 
-		int8_t res = op1->digits[i] + op2->digits[i];
-		if (res >= D_MINUS)
-		{
-			uint8_t gt = (res >= BASE);
-			res -= 5 * gt;
-			rop->digits[i - 1] += gt;
-			return;
-		}
-		else
-		{
-			res += 5;
-			--rop->digits[i - 1];
-		}
+	__m256i op1v = op1->digits;
+	__m256i op2v = op2->digits;
 
-		rop->digits[i] = res;
-	}
+	__m256i res = _mm256_add_epi8(op1v, op2v);
+
+	// for (uint8_t i = MAX_DGT_NUM - 1; i != 0; --i)
+	// {
+
+	// 	int8_t res = op1->digits[i] + op2->digits[i];
+	// 	if (res >= D_MINUS)
+	// 	{
+	// 		uint8_t gt = (res >= BASE);
+	// 		res -= 5 * gt;
+	// 		rop->digits[i - 1] += gt;
+	// 	}
+	// 	else
+	// 	{
+	// 		res += 5;
+	// 		--rop->digits[i - 1];
+	// 	}
+
+	// 	rop->digits[i] = res;
+	// }
 	return;
 }
 
