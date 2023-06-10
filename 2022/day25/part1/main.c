@@ -35,18 +35,31 @@ enum
 	UNREACH,
 };
 
-const uint8_t digits_lut[32] = {
-		MINUS, UNREACH, ZERO, ONE, TWO, UNREACH, UNREACH, UNREACH,
-		UNREACH, UNREACH, UNREACH, UNREACH, D_MINUS, UNREACH, UNREACH, UNREACH,
-		MINUS, UNREACH, ZERO, ONE, TWO, UNREACH, UNREACH, UNREACH,
-		UNREACH, UNREACH, UNREACH, UNREACH, D_MINUS, UNREACH, UNREACH, UNREACH};
+const int8_t digits_lut[32] __attribute__((aligned(16))) = {
+		0, UNREACH, MINUS, UNREACH, ZERO, ONE, TWO, UNREACH,
+		UNREACH, UNREACH, UNREACH, UNREACH, UNREACH, UNREACH, D_MINUS, UNREACH,
+		0, UNREACH, MINUS, UNREACH, ZERO, ONE, TWO, UNREACH,
+		UNREACH, UNREACH, UNREACH, UNREACH, UNREACH, UNREACH, D_MINUS, UNREACH};
 __m256i digits_lutv;
-const uint8_t lut_magic_const = 34;
 #define GET_OFF_IDX(ch) (ch >> 2)
-#define GET_DIGIT(ch) digits_lut[i - GET_OFF_IDX(ch) - lut_magic_const] // (-GET_OFF_IDX('-') + '-') = 34
+#define GET_IDX(ch) ((i - GET_OFF_IDX(ch)) & 0x0F)
+#define GET_DIGIT(ch) digits_lut[GET_IDX(ch)] // (-GET_OFF_IDX('-') + '-') = 34
 
 const char digits_str_[] = {'=', '-', '0', '1', '2'};
 const char *const digits_str = &(digits_str_[0]) - D_MINUS;
+
+const int8_t add_lut_low[33] __attribute__((aligned(16))) = {
+		0, 1, 2, 11, 12, 13, 14, 15,
+		16, 17, 18, 19, -1, 0, -2, -1,
+		0, 1, 2, 11, 12, 13, 14, 15,
+		16, 17, 18, 19, -1, 7, -2, -1, 20};
+__m256i vadd_lut_low;
+const int8_t add_lut_high[32] __attribute__((aligned(16))) = {
+		0, 0, 0, 1, 0, 0, 0, 0,
+		0, 0, 0, 0, -1, -1, 0, 0,
+		0, 0, 0, 1, 0, 0, 0, 0,
+		0, 0, 0, 0, -1, -1, 0, 0};
+__m256i vadd_lut_high;
 
 typedef struct SNAFU_s
 {
@@ -65,6 +78,8 @@ int main(int argc, char **argv)
 	(void)argv;
 
 	digits_lutv = _mm256_loadu_si256((const __m256i *)digits_lut);
+	vadd_lut_low = _mm256_loadu_si256((const __m256i *)add_lut_low);
+	vadd_lut_high = _mm256_loadu_si256((const __m256i *)add_lut_high);
 
 	timer sample, tot;
 	double times[ITER] = {0};
@@ -125,7 +140,7 @@ void SNAFU_init(SNAFU *snafu)
 
 void SNAFU_set_zero(SNAFU *snafu)
 {
-	snafu->digits = _mm256_set1_epi32(0);
+	snafu->digits = _mm256_setzero_si256();
 	return;
 }
 
@@ -138,12 +153,11 @@ void SNAFU_fread_line(FILE *f, SNAFU *ptr)
 	char line[32] = {0};
 	memcpy(line + 32 - len, line_tmp, len);
 
-	const __m256i lut_constv = _mm256_set1_epi8(lut_magic_const);
 	const __m256i shift_mask = _mm256_set1_epi8(0x3F);
 
 	ptr->digits = _mm256_loadu_si256((const __m256i *)line);
 	const __m256i off = _mm256_and_si256(_mm256_srli_epi16(ptr->digits, 2), shift_mask); // >> 2
-	const __m256i idx = _mm256_sub_epi8(_mm256_sub_epi8(ptr->digits, off), lut_constv);	 // - off - lut_const
+	const __m256i idx = _mm256_sub_epi8(ptr->digits, off);															 // - off - lut_const
 	ptr->digits = _mm256_shuffle_epi8(digits_lutv, idx);
 
 	return;
@@ -155,39 +169,25 @@ void SNAFU_add(SNAFU *rop, SNAFU *op1, SNAFU *op2)
 	__m256i op1v = op1->digits;
 	__m256i op2v = op2->digits;
 
-	__m256i res = _mm256_add_epi8(op1v, op2v);
+	__m256i sum = _mm256_and_si256(_mm256_add_epi8(op1v, op2v), _mm256_set1_epi8(0x0F));
 
-	// for (uint8_t i = MAX_DGT_NUM - 1; i != 0; --i)
-	// {
-
-	// 	int8_t res = op1->digits[i] + op2->digits[i];
-	// 	if (res >= D_MINUS)
-	// 	{
-	// 		uint8_t gt = (res >= BASE);
-	// 		res -= 5 * gt;
-	// 		rop->digits[i - 1] += gt;
-	// 	}
-	// 	else
-	// 	{
-	// 		res += 5;
-	// 		--rop->digits[i - 1];
-	// 	}
-
-	// 	rop->digits[i] = res;
-	// }
+	__m256i low = _mm256_shuffle_epi8(vadd_lut_low, sum);
+	__m256i high = _mm256_shuffle_epi8(vadd_lut_high, sum);
+	rop->digits = _mm256_add_epi8(low, high);
 	return;
 }
 
 void SNAFU_print(SNAFU *snafu)
 {
+	int8_t *digs = (int8_t *)&(snafu->digits);
 	uint8_t is_still_zero = 1;
 	for (uint8_t i = 0; i < MAX_DGT_NUM; ++i)
 	{
-		if (is_still_zero && snafu->digits[i] != 0)
+		if (is_still_zero && digs[i] != 0)
 			is_still_zero = 0;
 		if (is_still_zero)
 			continue;
-		putchar(digits_str[snafu->digits[i]]);
+		putchar(digits_str[digs[i]]);
 	}
 	return;
 }
