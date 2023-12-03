@@ -9,12 +9,12 @@
 #include <assert.h>
 #include <immintrin.h>
 
-#define ITER 10000
+#define ITER 1
 #define __HELPER_IMPLEMENTATION__
 #include "../../../helper.h"
 
 // #define _DEBUG
-// #define TEST
+#define TEST
 
 #ifndef TEST
 #define INPUT "input.txt"
@@ -49,15 +49,15 @@ const char digits_str_[] = {'=', '-', '0', '1', '2'};
 const char *const digits_str = &(digits_str_[0]) - D_MINUS;
 
 const int8_t add_lut_low[33] __attribute__((aligned(16))) = {
-		0, 1, 2, 11, 12, 13, 14, 15,
+		0, 1, 2, 0, 1, 13, 14, 15,
 		16, 17, 18, 19, -1, 0, -2, -1,
-		0, 1, 2, 11, 12, 13, 14, 15,
+		0, 1, 2, 0, 1, 13, 14, 15,
 		16, 17, 18, 19, -1, 7, -2, -1, 20};
 __m256i vadd_lut_low;
 const int8_t add_lut_high[32] __attribute__((aligned(16))) = {
-		0, 0, 0, 1, 0, 0, 0, 0,
+		0, 0, 0, 1, 1, 0, 0, 0,
 		0, 0, 0, 0, -1, -1, 0, 0,
-		0, 0, 0, 1, 0, 0, 0, 0,
+		0, 0, 0, 1, 1, 0, 0, 0,
 		0, 0, 0, 0, -1, -1, 0, 0};
 __m256i vadd_lut_high;
 
@@ -74,6 +74,10 @@ void SNAFU_set_zero(SNAFU *snafu);
 
 int main(int argc, char **argv)
 {
+
+	// uint8_t size[1] = {0};
+	// return 0;
+
 	(void)argc;
 	(void)argv;
 
@@ -108,7 +112,11 @@ int main(int argc, char **argv)
 		{
 			SNAFU_set_zero(&curr);
 			SNAFU_fread_line(f, &curr);
+			SNAFU_print(&curr);
 			SNAFU_add(&sum, &sum, &curr);
+			printf("\t| \t");
+			SNAFU_print(&sum);
+			putchar('\n');
 		} while (fscanf(f, "%c", &tmp) != EOF);
 
 		rewind(f);
@@ -126,7 +134,7 @@ int main(int argc, char **argv)
 	const double std_dev = std_dev_time(times, mean);
 
 	printf("total execution was %f milliseconds\n", tot_time);
-	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f\n", mean, std_dev);
+	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f milliseconds\n", mean, std_dev);
 	printf("%f\n", mean * ITER);
 
 	return EXIT_SUCCESS;
@@ -165,14 +173,28 @@ void SNAFU_fread_line(FILE *f, SNAFU *ptr)
 
 void SNAFU_add(SNAFU *rop, SNAFU *op1, SNAFU *op2)
 {
-
 	__m256i op1v = op1->digits;
 	__m256i op2v = op2->digits;
 
+	char high_[33] __attribute__((aligned(32))) = {0};
+
 	__m256i sum = _mm256_and_si256(_mm256_add_epi8(op1v, op2v), _mm256_set1_epi8(0x0F));
 
-	__m256i low = _mm256_shuffle_epi8(vadd_lut_low, sum);
-	__m256i high = _mm256_shuffle_epi8(vadd_lut_high, sum);
+	__m256i all_ones = _mm256_set1_epi64x(UINT64_MAX);
+
+	__m256i low, high;
+	for (uint8_t i = 0; i < 32; ++i)
+	{
+		low = _mm256_shuffle_epi8(vadd_lut_low, sum);
+
+		*(__m256i *)high_ = _mm256_shuffle_epi8(vadd_lut_high, sum);
+		high = _mm256_loadu_si256((const __m256i *)((int8_t *)(high_) + 1));
+		sum = _mm256_and_si256(_mm256_add_epi8(low, high), _mm256_set1_epi8(0x0F));
+
+		if (_mm256_testz_si256(high, all_ones))
+			break;
+	}
+
 	rop->digits = _mm256_add_epi8(low, high);
 	return;
 }
@@ -181,13 +203,18 @@ void SNAFU_print(SNAFU *snafu)
 {
 	int8_t *digs = (int8_t *)&(snafu->digits);
 	uint8_t is_still_zero = 1;
+	uint32_t pow = 1;
+	uint32_t tot = 0;
 	for (uint8_t i = 0; i < MAX_DGT_NUM; ++i)
 	{
+		tot += pow * digs[31 - i];
+		pow *= 5;
 		if (is_still_zero && digs[i] != 0)
 			is_still_zero = 0;
 		if (is_still_zero)
 			continue;
 		putchar(digits_str[digs[i]]);
 	}
+	printf("  ->  %10u", tot);
 	return;
 }

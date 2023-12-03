@@ -9,11 +9,10 @@
 #include <assert.h>
 
 #define ITER 1000
-#define LOGFILE "logs"
 #define BUFF_SIZE 64
 
 #define __HELPER_IMPLEMENTATION__
-#include "../../helper.h"
+#include "../../../helper.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -73,15 +72,8 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 
-#ifdef _WIN32
-	LARGE_INTEGER frequency;
-	LARGE_INTEGER start;
-	LARGE_INTEGER end;
-	double interval;
-
-	QueryPerformanceFrequency(&frequency);
-	QueryPerformanceCounter(&start);
-#endif
+	timer tot, sample;
+	timer_start(&tot);
 
 	FILE *f = fopen("../" INPUT, "r");
 	if (f == NULL)
@@ -90,46 +82,51 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	obj first, second;
-	obj_init(&first);
-	obj_init(&second);
+	double times[ITER] = {0};
 
-	char *line = calloc(256, sizeof(char));
-
-	char tmp;
-	uint32_t i = 1;
-	uint32_t total = 0;
-	do
+	uint32_t total;
+	for (uint64_t sample_idx = 0; sample_idx < ITER; ++sample_idx)
 	{
-		fscanf(f, "%256[^\n]%*c", line);
-		read_obj(line, &first);
-		fscanf(f, "%256[^\n]%*c", line);
-		read_obj(line, &second);
+		timer_start(&sample);
 
-		uint8_t ans = cmp_obj(first, second);
-		if (ans == 0)
-			total += i;
+		obj first, second;
+		obj_init(&first);
+		obj_init(&second);
 
-		// printf("== Pair %u == \n", i);
-		// print_obj(first);
-		// putchar('\n');
-		// print_obj(second);
-		// putchar('\n');
-		// printf("inputs are%s in the right order\n\n", ans == 0 ? "" : " *not*");
+		char *line = calloc(256, sizeof(char));
 
-		++i;
-	} while ((tmp = fgetc(f)) == '\n');
+		char tmp;
+		uint32_t i = 1;
+		total = 0;
+		do
+		{
+			fscanf(f, "%256[^\n]%*c", line);
+			read_obj(line, &first);
+			fscanf(f, "%256[^\n]%*c", line);
+			read_obj(line, &second);
+
+			uint8_t ans = cmp_obj(first, second);
+			if (ans == 0)
+				total += i;
+
+			++i;
+		} while ((tmp = fgetc(f)) == '\n');
+
+		rewind(f);
+
+		times[sample_idx] = timer_stop(&sample) * 1000;
+	}
 
 	printf("the sum of the indices already in the right order is : %u\n", total);
 
-#ifdef _WIN32
-	QueryPerformanceCounter(&end);
-	interval = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000;
-
-	printf("took : %f milliseconds\n", interval);
-#endif
-
 	fclose(f);
+
+	const double tot_time = timer_stop(&tot) * 1000;
+	const double mean = mean_time(times);
+	const double std_dev = std_dev_time(times, mean);
+
+	printf("total execution was %f milliseconds\n", tot_time);
+	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f milliseconds\n", mean, std_dev);
 
 	return EXIT_SUCCESS;
 }

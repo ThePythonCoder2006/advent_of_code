@@ -49,6 +49,8 @@ int main(int argc, char **argv)
 		 code goes here
 		*/
 
+		rewind(f);
+
 		times[sample_idx] = timer_stop(&sample) * 1000;
 	}
 
@@ -59,7 +61,7 @@ int main(int argc, char **argv)
 	const double std_dev = std_dev_time(times, mean);
 
 	printf("total execution was %f milliseconds\n", tot_time);
-	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f\n", mean, std_dev);
+	printf("on average a single run of the algorithm took %f milliseconds, with a standart deviation of %f milliseconds\n", mean, std_dev);
 
 	return EXIT_SUCCESS;
 }
